@@ -74,3 +74,48 @@ class RemoteDataApiManager: NSObject {
     }
     
 }
+
+extension RemoteDataApiManager {
+    static func fetchData<T: Decodable>(baseUrl: String = (DataStore.shared.configuration?.baseUrl ?? ""),
+                                        endPoint: String = "",
+                                        method: ServiceMethod = .GET,
+                                        param: [String:Any]? = nil,
+                                        completionWithSuccess: @escaping((T) -> ()),
+                                        failure: @escaping((APIError) -> ())) {
+        
+        guard let url = URL(string: baseUrl + endPoint)  else { failure(.internalError); return }
+       
+        let request = NSMutableURLRequest(url: url, cachePolicy:.useProtocolCachePolicy, timeoutInterval: 120)
+        request.httpMethod = method.rawValue
+        request.allHTTPHeaderFields = Constants.URLHeaders.headers
+        if let parameter = param {
+            do {
+                let decoded = try JSONSerialization.data(withJSONObject: parameter, options: .prettyPrinted)
+                request.httpBody = decoded
+            }
+            catch {
+                failure(.internalError)
+            }
+        }
+        
+        session.loadData(with: request as URLRequest) { (data, response, error) in
+            RemoteDataApiManager.storeCookie(response: response)
+            DispatchQueue.main.async {
+                guard let httpResponse = response as? HTTPURLResponse,
+                      httpResponse.statusCode >= 200 && httpResponse.statusCode < 300,
+                      error == nil
+                    else { failure(.serverError); return }
+
+                do {
+                    guard let data = data else { failure(.serverError); return }
+
+                    let object = try JSONDecoder().decode(T.self, from: data)
+                    completionWithSuccess(object)
+                } catch {
+                    failure(.parsingError)
+                }
+            }
+        }
+    }
+}
+
