@@ -7,7 +7,7 @@
 
 import XCTest
 @testable import ARBasicSetUp
-
+ 
 class ARBasicSetUpTests: XCTestCase {
     var session = NetworkSessionMock()
     var endpoint : String = "/login"
